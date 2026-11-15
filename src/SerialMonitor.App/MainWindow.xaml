@@ -1,0 +1,183 @@
+﻿<Window x:Class="SerialMonitor.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SerialMonitor.App.ViewModels"
+        xmlns:ctrl="clr-namespace:SerialMonitor.App.Controls"
+        Title="장비 측정 모니터 — Serial Monitor"
+        Height="780" Width="1200"
+        MinHeight="560" MinWidth="920"
+        Background="{StaticResource WindowBackground}"
+        TextOptions.TextFormattingMode="Display">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <DockPanel>
+
+        <!-- 연결 바 -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource PanelBackground}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,10">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                <TextBlock Text="연결" Style="{StaticResource SectionLabel}" Margin="0,0,12,0" />
+
+                <RadioButton Content="시뮬레이터" GroupName="Mode" Margin="0,0,10,0"
+                             IsChecked="{Binding UseSimulator}"
+                             IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBool}}" />
+                <RadioButton Content="실제 시리얼" GroupName="Mode" Margin="0,0,16,0"
+                             IsChecked="{Binding IsSerialMode, Mode=OneWay}"
+                             Checked="OnSerialModeChecked"
+                             IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBool}}" />
+
+                <ComboBox Width="110" Margin="0,0,6,0"
+                          ItemsSource="{Binding AvailablePorts}"
+                          SelectedItem="{Binding SelectedPort}"
+                          IsEnabled="{Binding IsSerialMode}" />
+
+                <ComboBox Width="92" Margin="0,0,6,0"
+                          ItemsSource="{Binding BaudRates}"
+                          SelectedItem="{Binding SelectedBaudRate}"
+                          IsEnabled="{Binding IsSerialMode}" />
+
+                <Button Content="새로고침" Margin="0,0,16,0"
+                        Command="{Binding RefreshPortsCommand}"
+                        IsEnabled="{Binding IsSerialMode}" />
+
+                <CheckBox Content="고장 주입" Margin="0,0,14,0"
+                          IsChecked="{Binding InjectFaults}"
+                          ToolTip="유실 · CRC 오류 · 쓰레기 바이트 · 무응답을 일부러 섞습니다"
+                          IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBool}}" />
+
+                <CheckBox Content="CSV 기록" Margin="0,0,18,0"
+                          IsChecked="{Binding RecordCsv}"
+                          IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBool}}" />
+
+                <Button Content="연결" Width="76" Margin="0,0,6,0"
+                        Style="{StaticResource PrimaryButton}"
+                        Command="{Binding ConnectCommand}" />
+                <Button Content="해제" Width="76" Margin="0,0,18,0"
+                        Command="{Binding DisconnectCommand}" />
+
+                <Ellipse Width="10" Height="10" Margin="0,0,7,0" VerticalAlignment="Center"
+                         Fill="{Binding State, Converter={StaticResource StateToBrush}}" />
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <!-- 통계 바 -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource PanelBackground}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,0,0,1" Padding="14,8">
+            <ItemsControl>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ContentControl Style="{StaticResource StatTile}" Tag="수신 프레임"
+                                Content="{Binding Statistics.ReceivedFrames, StringFormat={}{0:N0}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="초당 프레임"
+                                Content="{Binding Statistics.FramesPerSecond, StringFormat={}{0:N1}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="유실"
+                                Content="{Binding Statistics.LostFrames, StringFormat={}{0:N0}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="유실률"
+                                Content="{Binding Statistics.LossRate, StringFormat={}{0:P2}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="CRC 오류"
+                                Content="{Binding Statistics.CrcErrors, StringFormat={}{0:N0}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="버린 바이트"
+                                Content="{Binding Statistics.DiscardedBytes, StringFormat={}{0:N0}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="타임아웃"
+                                Content="{Binding Statistics.Timeouts, StringFormat={}{0:N0}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="재시도"
+                                Content="{Binding Statistics.Retries, StringFormat={}{0:N0}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="재연결"
+                                Content="{Binding Statistics.Reconnects, StringFormat={}{0:N0}}" />
+                <ContentControl Style="{StaticResource StatTile}" Tag="NG 비율"
+                                Content="{Binding Statistics.NgRate, StringFormat={}{0:P2}}" />
+            </ItemsControl>
+        </Border>
+
+        <!-- 통신 로그 -->
+        <Border DockPanel.Dock="Bottom" Height="172" Background="{StaticResource PanelBackground}"
+                BorderBrush="{StaticResource BorderColor}" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" Margin="14,8,14,4">
+                    <TextBlock Text="통신 로그" Style="{StaticResource SectionLabel}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding RecordingText}" Margin="0,0,12,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMuted}" />
+                        <Button Content="지우기" Command="{Binding ClearLogCommand}" />
+                    </StackPanel>
+                </Grid>
+                <ListBox ItemsSource="{Binding LogLines}" Margin="8,0,8,8"
+                         Background="Transparent" BorderThickness="0"
+                         Foreground="{StaticResource TextMuted}"
+                         FontFamily="Consolas" FontSize="12"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="4,1" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- 채널 카드 -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+            <ItemsControl ItemsSource="{Binding Channels}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="6" Padding="14" CornerRadius="6"
+                                Background="{StaticResource PanelBackground}"
+                                BorderBrush="{StaticResource BorderColor}" BorderThickness="1">
+                            <DockPanel>
+
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding LimitText}" FontSize="11" Margin="0,2,0,0"
+                                                   Foreground="{StaticResource TextMuted}" />
+                                    </StackPanel>
+
+                                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding LastValueText}"
+                                                   FontSize="26" FontWeight="Bold"
+                                                   HorizontalAlignment="Right"
+                                                   Foreground="{Binding Verdict, Converter={StaticResource VerdictToBrush}}" />
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,0,0">
+                                            <Border CornerRadius="3" Padding="7,1" Margin="0,0,8,0"
+                                                    Background="{Binding Verdict, Converter={StaticResource VerdictToBadge}}">
+                                                <TextBlock Text="{Binding VerdictText}" FontSize="11"
+                                                           FontWeight="Bold" Foreground="White" />
+                                            </Border>
+                                            <TextBlock Text="{Binding CountText}" FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextMuted}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+
+                                <ctrl:TrendChart Height="150"
+                                                 Series="{Binding Series}"
+                                                 Revision="{Binding Revision}"
+                                                 LowerLimit="{Binding LowerLimit}"
+                                                 UpperLimit="{Binding UpperLimit}"
+                                                 LineBrush="{Binding LineBrush}" />
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </DockPanel>
+</Window>
